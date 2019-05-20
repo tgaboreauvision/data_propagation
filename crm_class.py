@@ -7,6 +7,7 @@ import time
 
 
 class Odata():
+    """Class to connect to TE instance of Dynamics via oData API."""
 
     def __init__(self, sandbox):
         if sandbox:
@@ -30,6 +31,7 @@ class Odata():
         }
 
     def get_access_token(self):
+        """Get access token for API, must be called before any requests are made to the API."""
         # build the authorization token request
         tokenpost = {
             'client_id': self.clientid,
@@ -45,7 +47,8 @@ class Odata():
         except KeyError as e:
             print('Cannot get access token.')
 
-    def get_req(self, entity, top = None, select = None, fltr = None, textquery=None, printprogress = True):
+    def get_req(self, entity, top=None, select=None, fltr=None, textquery=None, printprogress=True):
+        """Make a GET request to the oData API."""
         if textquery:
             crmwebapiquery = textquery
         else:
@@ -61,21 +64,13 @@ class Odata():
             params = (top_param, select_param, filter_param)
             param_string = '&'.join([p for p in params if p])
             crmwebapiquery = '/{0}?{1}'.format(entity, param_string)
-        # print(crmwebapiquery)
-        # try:
         results = self.get_all_data(crmwebapiquery, printprogress)
-        # except (ValueError, requests.exceptions.ConnectionError):
-        #     self.get_access_token()
-        #     if attempt < 5:
-        #         time.sleep(5)
-        #         attempt += 1
-        #         print('oData failure. retrying - attempt {0}'.format(attempt))
-        #         results = self.get_req(entity, top, select, fltr, attempt)
-        #     else:
-        #         return None
         return results
 
     def get_page(self, url, attempt=1):
+        """Get the next page of results form the oData API. Datasets returned by the API are
+        returned in chunks of 5000 records. Where more than 5000 records are to be returned, a link
+        for the next page is included."""
         try:
             crmres = requests.get(url, headers=self.crmrequestheaders)
             # pprint(getmembers(crmres))
@@ -94,6 +89,9 @@ class Odata():
         return records, next_link
 
     def get_all_data(self, api_query, printprogress):
+        """Get and collate all of the data returned by a GET request to the oData API. Where
+        the results include multiple pages, iterate over the pages and combine the data into one
+        list."""
         url = self.crmwebapi + api_query
         records = []
         next_link = url
@@ -109,10 +107,9 @@ class Odata():
         return records
 
     def post_req(self, entity, data):
+        """Make a POST request to the oData API."""
         crmwebapiquery = '/{0}'.format(entity)
         url = self.crmwebapi + crmwebapiquery
-        # print crmwebapiquery
-        # pprint(data)
         result = requests.post(
             url,
             headers=self.crmrequestheaders,
@@ -121,6 +118,7 @@ class Odata():
         return result
 
     def patch_req(self, entity, record_id, data):
+        """Make a PATCH request to the oData API."""
         crmwebapiquery = '/{0}({1})'.format(entity, record_id)
         url = self.crmwebapi + crmwebapiquery
         # print crmwebapiquery
@@ -133,6 +131,7 @@ class Odata():
         return result
 
     def del_req(self, entity, record_id):
+        """Make a DELETE request to the oData API."""
         crmwebapiquery = '/{0}({1})'.format(entity, record_id)
         url = self.crmwebapi + crmwebapiquery
         response = requests.delete(
@@ -140,77 +139,3 @@ class Odata():
             headers=self.crmrequestheaders
         )
         return response
-
-    def get_supply_points(self, mpan):
-        try:
-            supply_points = self.get_req(
-                'd4e_energy_supply_points',
-                fltr="d4e_mpxn eq '{0}'".format(mpan)
-            )
-        except IndexError:
-            return None
-        return supply_points
-
-    def get_meters(self, mpan_id):
-        try:
-            meters = self.get_req(
-                'd4e_meters',
-                fltr="_d4e_esp_meter_value eq '{0}'".format(mpan_id)
-            )
-        except KeyError:
-            return None
-        return meters
-
-    def get_meter(self, serial_number, mpan_id):
-        try:
-            meters = self.get_req(
-                'd4e_meters',
-                fltr="d4e_serial_number eq '{0}' and _d4e_esp_meter_value eq '{1}'".format(serial_number, mpan_id)
-            )
-        except KeyError as e:
-            return None
-        return meters
-
-    def get_register(self, register_id, meter_id):
-        registers = self.get_req(
-            'd4e_registers',
-            fltr="d4e_meterregisterid eq '{0}' and _d4e_meterregisters_value eq '{1}'".format(register_id, meter_id)
-        )
-        return registers
-
-    def write_log(self, mpxn, message, direction, message_type, processing_status, created_by, filename):
-        data = {
-            'd4e_cfa_msg_iid': '{0}'.format(uuid.uuid4()),
-            'd4e_cfa_parent_loopid': '{0}'.format(mpxn),
-            'd4e_message_text': message,
-            'd4e_direction': direction,
-            'd4e_message_type': message_type,
-            'd4e_processing_status': processing_status,
-            'd4e_mpxn': '{0}'.format(mpxn),
-            'd4e_log_created_by': created_by,
-            'd4e_message_filename' : filename
-
-        }
-        self.post_req('d4e_in_tx_cfa_msg_tests', data)
-
-
-    def squash(self, value):
-        if isinstance(value, str):
-            return ''.join([char if ord(char) < 128 else '?' for char in value])
-        else:
-            return value
-
-    def write_csv(self, filename, data, fieldnames = None):
-        if not fieldnames:
-            fieldnames = []
-        with open(filename, 'w', newline='') as csvfile:
-            for record in data:
-                for k in record:
-                    if k not in fieldnames:
-                        fieldnames.append(k)
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            for row in data:
-                row = {self.squash(k): self.squash(v) for k, v in row.items()}
-                writer.writerow(row)
-

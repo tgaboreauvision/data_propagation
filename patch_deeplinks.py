@@ -1,27 +1,17 @@
+"""Open a CSV file containing account numbers and deeplinks. Find the accounts in Dynamics and
+patch them with the deeplinks"""
 import csv
-from inspect import getmembers
-from pprint import pprint
-
 from crm_class import Odata
+
+filename = 'deeplink_data_20190325.csv'
 
 """creates class to access CRM"""
 dynamics = Odata(sandbox=False)
 dynamics.get_access_token()
 
-"""Open data from csv"""
-with open('deeplink_data_20190325.csv', 'r') as csvfile:
-    reader = csv.DictReader(csvfile)
-    data = [row for row in reader]
-
-print(len(data))
-
-# def get_contacts_from_email(email):
-#     """Write functionm to return contacts using email address"""
-#     contacts = dynamics.get_req('contacts', fltr=f"emailaddress1 eq '{email}'")
-#     return contacts
-
 
 def get_account_by_account_number(account_number):
+    """Get an account GUID from Dynamics using the account number."""
     accounts = dynamics.get_req('accounts', fltr=f"name eq '{account_number}'")
     if not accounts:
         print(f'no account found with account number: {account_number}')
@@ -31,16 +21,27 @@ def get_account_by_account_number(account_number):
         return accounts[0]['accountid']
 
 
-def patch_deeplink(guid, deeplink):
+def patch_deeplink(guid, deeplink, attempt=1):
+    """Patch an account with a deeplink using the account GUID."""
     data = {'websiteurl': deeplink}
     request = dynamics.patch_req('accounts', guid, data)
     if request.status_code == 200:
         return True
     else:
-        pprint(getmembers(request))
+        if request.reason == 'Unauthorized':
+            attempt += 1
+            print(f'oData failure - retrying (attempt {attempt})')
+            dynamics.get_access_token()
+            patch_deeplink(guid, deeplink, attempt)
 
 
-for i, row in enumerate(data[12900:]):
+"""Open data from csv"""
+with open(filename, 'r') as csvfile:
+    reader = csv.DictReader(csvfile)
+    data = [row for row in reader]
+
+
+for i, row in enumerate(data):
     account_number = row['name']
     deeplink = row['deeplink']
     if deeplink:
