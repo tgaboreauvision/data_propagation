@@ -16,8 +16,8 @@ class Odata():
             sandbox_flag = ''
         self.crmorg = f'https://togetherenergy{sandbox_flag}.crm11.dynamics.com'  # base url for crm org
         self.clientid = 'd3be38a1-f508-401c-aa24-57db6af0b083'  # application client id
-        self.username = settings.username  # username
-        self.userpassword = settings.userpassword  # password
+        self.username = settings.odata_username  # username
+        self.userpassword = settings.odata_userpassword  # password
         self.tokenendpoint = 'https://login.microsoftonline.com/00b00e7f-ac76-4fd6-95a4-1e59637ce7a0/oauth2/token'  # oauth token endpoint
         self.crmwebapi = f'https://togetherenergy{sandbox_flag}.crm11.dynamics.com/api/data/v9.0'  # full path to web api endpoint
         self.accesstoken = None
